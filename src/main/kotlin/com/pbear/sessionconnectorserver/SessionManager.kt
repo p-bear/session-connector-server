@@ -1,6 +1,5 @@
 package com.pbear.sessionconnectorserver
 
-import com.fasterxml.jackson.annotation.JsonIgnore
 import com.google.gson.Gson
 import mu.KotlinLogging
 import org.springframework.context.annotation.Configuration
@@ -21,7 +20,10 @@ class SessionManager {
 
     fun sendMessage(referenceTags: Set<String>, message: String) {
         this.getSessionsByReferenceTags(referenceTags)
-            .forEach { it.webSocketSession.sendMessage(TextMessage(message)) }
+            .forEach {
+                log.info("send message, id: ${it.id}")
+                it.webSocketSession.sendMessage(TextMessage(message))
+            }
     }
 
 
@@ -60,11 +62,7 @@ class SessionManager {
         this.sessionMap[sessionId]?.referenceTagSet?.remove(referenceTag)
 }
 
-class SessionWrapper(
-    val id: String,
-    var referenceTagSet: MutableSet<String> = HashSet(),
-    @JsonIgnore
-    val webSocketSession: WebSocketSession)
+
 
 @Component
 class StringWebsocketHandler(val sessionManager: SessionManager): TextWebSocketHandler() {
@@ -81,12 +79,11 @@ class StringWebsocketHandler(val sessionManager: SessionManager): TextWebSocketH
     }
 
     override fun handleTextMessage(session: WebSocketSession, message: TextMessage) {
-        val payload = this.gson.fromJson(message.payload, CommonPayload::class.java)
+        val payload = this.gson.fromJson(message.payload, CommonWebsocketPayload::class.java)
         when(payload.type) {
             "addReference" -> this.sessionManager.addReferenceTag(session.id, payload.data["referenceTag"] as String)
             "removeReference" -> this.sessionManager.removeReferenceTag(session.id, payload.data["referenceTag"] as String)
         }
-
     }
 
 
@@ -102,9 +99,7 @@ class StringWebsocketHandler(val sessionManager: SessionManager): TextWebSocketH
     }
 }
 
-data class CommonPayload(
-    val type: String,
-    val data: Map<String, *>)
+
 
 
 @Configuration

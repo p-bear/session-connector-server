@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "com.pbear"
-version = "0.0.2"
+version = "0.0.3"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_11
@@ -21,6 +21,7 @@ repositories {
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-webflux")
     implementation("org.springframework.boot:spring-boot-starter-websocket")
+    implementation("io.projectreactor.kafka:reactor-kafka:1.3.11")
 
     implementation("com.google.code.gson:gson:2.10.1")
     implementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
