@@ -4,9 +4,7 @@ import com.google.gson.Gson
 import mu.KotlinLogging
 import org.springframework.context.annotation.Configuration
 import org.springframework.stereotype.Component
-import org.springframework.web.socket.CloseStatus
-import org.springframework.web.socket.TextMessage
-import org.springframework.web.socket.WebSocketSession
+import org.springframework.web.socket.*
 import org.springframework.web.socket.config.annotation.EnableWebSocket
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
@@ -19,11 +17,19 @@ class SessionManager {
     private val sessionMap = ConcurrentHashMap<String, SessionWrapper>()
 
     fun sendMessage(referenceTags: Set<String>, message: String) {
-        this.getSessionsByReferenceTags(referenceTags)
-            .forEach {
+        val failList = this.getSessionsByReferenceTags(referenceTags)
+            .map {
                 log.info("send message, id: ${it.id}")
-                it.webSocketSession.sendMessage(TextMessage(message))
+                try {
+                    it.webSocketSession.sendMessage(TextMessage(message))
+                    null
+                } catch (e: Exception) {
+                    it
+                }
             }
+            .filterNotNull()
+            .toList()
+        failList.forEach { this.removeSession(it.id) }
     }
 
 
@@ -67,6 +73,7 @@ class SessionManager {
 @Component
 class StringWebsocketHandler(val sessionManager: SessionManager): TextWebSocketHandler() {
     private val gson = Gson()
+    private val log = KotlinLogging.logger {  }
 
     override fun afterConnectionEstablished(session: WebSocketSession) {
         val sessionWrapper = SessionWrapper(id = session.id, webSocketSession = session)
@@ -78,14 +85,21 @@ class StringWebsocketHandler(val sessionManager: SessionManager): TextWebSocketH
         this.sessionManager.removeSession(session.id)
     }
 
-    override fun handleTextMessage(session: WebSocketSession, message: TextMessage) {
+    override fun handleMessage(session: WebSocketSession, message: WebSocketMessage<*>) {
+        when (message) {
+            is PingMessage -> session.sendMessage(PongMessage())
+            is TextMessage -> this.handleTextWebsocketMessage(session, message)
+        }
+    }
+
+    fun handleTextWebsocketMessage(session: WebSocketSession, message: TextMessage) {
         val payload = this.gson.fromJson(message.payload, CommonWebsocketPayload::class.java)
+        log.info("receive text message: ${message.payload}")
         when(payload.type) {
             "addReference" -> this.sessionManager.addReferenceTag(session.id, payload.data["referenceTag"] as String)
             "removeReference" -> this.sessionManager.removeReferenceTag(session.id, payload.data["referenceTag"] as String)
         }
     }
-
 
     private fun addReferenceTags(rawQuery: String, target: SessionWrapper) {
         rawQuery
