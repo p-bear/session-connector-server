@@ -16,6 +16,12 @@ class SessionManager {
     private val log = KotlinLogging.logger {  }
     private val sessionMap = ConcurrentHashMap<String, SessionWrapper>()
 
+    fun sendMessage(id: String, message: String) {
+        log.info("send message, id: $id")
+        this.sessionMap[id]?.webSocketSession?.sendMessage(TextMessage(message))
+    }
+
+
     fun sendMessage(referenceTags: Set<String>, message: String) {
         val failList = this.getSessionsByReferenceTags(referenceTags)
             .map {
@@ -96,6 +102,7 @@ class StringWebsocketHandler(val sessionManager: SessionManager): TextWebSocketH
         val payload = this.gson.fromJson(message.payload, CommonWebsocketPayload::class.java)
         log.info("receive text message: ${message.payload}")
         when(payload.type) {
+            "getSessionId" -> this.sessionManager.sendMessage(session.id, "{\"id\": \"${session.id}\"}")
             "addReference" -> this.sessionManager.addReferenceTag(session.id, payload.data["referenceTag"] as String)
             "removeReference" -> this.sessionManager.removeReferenceTag(session.id, payload.data["referenceTag"] as String)
         }
